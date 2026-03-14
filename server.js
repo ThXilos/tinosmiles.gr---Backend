@@ -3,9 +3,16 @@ const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
 const dayjs = require("dayjs");
+const rateLimit = require("express-rate-limit");
 const sendEmailCustomer = require("./utils/sendEmailCustomer.js");
 const sendEmailCompany = require("./utils/sendEmailCompany.js");
 const app = express();
+
+const emailLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: { success: false, message: "Too many requests, please try again later." },
+});
 
 const corsOptions = {
   origin: "https://tinosmiles.gr",
@@ -24,7 +31,7 @@ app.get("/", (req, res) => {
   res.send(`TinosMiles Service Running ${new Date()}`);
 });
 
-app.post("/api/sendemail", async (req, res) => {
+app.post("/api/sendemail", emailLimiter, async (req, res) => {
   const origin = req.get("Origin");
   if (origin !== corsOptions.origin) {
     return res.status(403).send("Forbidden");
@@ -38,6 +45,17 @@ app.post("/api/sendemail", async (req, res) => {
     returnTime,
     pickupLocation,
   } = req.body;
+
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  if (
+    !name || typeof name !== "string" || name.trim().length < 2 ||
+    !email || !emailRegex.test(email) ||
+    !pickupDate || !returnDate ||
+    !pickupTime || !returnTime ||
+    !pickupLocation
+  ) {
+    return res.status(400).json({ success: false, message: "Invalid or missing fields." });
+  }
 
   let rentDays;
   rentDays = dayjs(returnDate).diff(dayjs(pickupDate), "day");
