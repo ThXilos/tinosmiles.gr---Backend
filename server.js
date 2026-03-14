@@ -44,7 +44,25 @@ app.post("/api/sendemail", emailLimiter, async (req, res) => {
     pickupTime,
     returnTime,
     pickupLocation,
+    recaptchaToken,
   } = req.body;
+
+  if (!recaptchaToken) {
+    return res.status(400).json({ success: false, message: "reCAPTCHA token missing." });
+  }
+
+  const recaptchaVerify = await fetch(
+    `https://www.google.com/recaptcha/api/siteverify`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: `secret=${process.env.RECAPTCHA_SECRET_KEY}&response=${recaptchaToken}`,
+    }
+  );
+  const recaptchaResult = await recaptchaVerify.json();
+  if (!recaptchaResult.success) {
+    return res.status(400).json({ success: false, message: "reCAPTCHA verification failed." });
+  }
 
   const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
   if (
